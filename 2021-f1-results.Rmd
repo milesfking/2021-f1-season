@@ -1,0 +1,287 @@
+---
+title: "Results from the 2021 F1 Season"
+output: rmarkdown::html_document
+author: Miles King
+---
+
+Due Monday, February 21st by 5:00 pm.
+
+Before you start be sure to read through *all* of the rules and instructions in the `README.md`.
+
+<br/>
+
+### Data & Setup
+
+```{r message=FALSE}
+library(tidyverse)
+f1 = readRDS(file="data/f1.rds")
+```
+
+<br/>
+
+### Task 1 - Tidying the data
+
+The data, sourced from ergast.com, is a JSON file which contains information on the results of all 22 Formula One races from the 2021 season. The data includes results from each driver and constructor, information about each driver, race track descriptions, and more. These data were read into R using the jsonlite packages as an RDS file. Given this JSON file, I first created a tidy dataframe where each row represented a driver for a particular race.
+
+To do this, I unnested the F1 object to retrieve the desired data. As indicated in the task description, I avoided using `unnest_wider` and `unnest_wider` whenever possible, instead opting for `hoist` so I could be intentional in the data that I unnested from the f1 object. `unnest_longer` was used twice, once to separate the data for all 22 races and once to separate the driver information for all 20 drivers. In total, this amounts to a tidy 440 individual rows (20 drivers times 22 races).
+
+I also did some additional data cleaning, such as combining each driver's `givenName` and `familyName` to form full names and converting variable types to be more useful. This was saved as a new dataframe, entitled `race_df`.
+
+#### Code
+
+```{r task1}
+race_df <- tibble::tibble(f1 = f1)
+# tidying the dataframe by using hoist and unnest_longer
+race_df <- race_df %>%
+  hoist(f1, Races = c("RaceTable", "Races")) %>%
+  unnest_longer(Races) %>%
+  hoist(Races,
+        results = "Results",
+        race_name = "raceName",
+        round = "round",
+        date = "date") %>%
+  unnest_longer(results) %>%
+  hoist(results,
+        position = "positionText",
+        points = "points",
+        first_name = c("Driver", "givenName"),
+        last_name = c("Driver", "familyName"),
+        constructor = c("Constructor", "name"))
+# combined first name and last name into a name variable, selected only relevant variables
+race_df <- race_df %>%
+  mutate(driver = paste(first_name, " ", last_name)) %>%
+  select(race_name, round, date, driver, constructor, position, points)
+# made position NA if a driver did not finish for any reason 
+race_df$position[race_df$position == 'R'
+                 | race_df$position == 'D'
+                 | race_df$position == 'E'
+                 | race_df$position == 'W'
+                 | race_df$position == 'R'
+                 | race_df$position == 'F'
+                 | race_df$position == 'N'] <- NA
+# made each variable the desired type
+race_df$round <- as.integer(race_df$round)
+race_df$date <- as.Date(race_df$date)
+race_df$position <- as.integer(race_df$position)
+race_df$points <- as.double(race_df$points)
+print(head(race_df, 10))
+```
+
+<br/>
+
+
+### Task 2 - Drivers' Championship
+
+Before starting task 2, I wanted to convert the full race names to their abbreviated names (similar to the table as found on 
+[I'm an inline-style link with title](https://en.wikipedia.org/wiki/2021_Formula_One_World_Championship" >target="_blank "Wikipedia") to make my final table easier to read. To do so I made a new dataframe with two columns - one column with the full race name and the other column with the corresponding abbreviation. I then was able to join this dataframe to the existing task 1 dataframe by matching the full name of each race.
+
+To complete task 2, I then utilized the `pivot_wider` method to convert this tidy dataframe into a dataframe with individual drivers as the rows and the specific races as columns. This was accomplished by making the ID columns the drivers, taking names from `race_abbrv` (which was added to the dataframe using the above `inner_join`), and the values from position (since the question wants each entry in the dataframe to represent a particular driver's position in the given race).
+
+From there, the only thing left to do was to add a column to with the total points for each driver at the end of the season. I took the original dataframe from task 1, grouped by driver, and then summed the points column to find the total points over all 22 races by driver. I saved this as a new dataframe `total_points` and then joined this to the existing dataframe obtained by using `pivot_wider` by driver to complete the task. I then arranged by `total_points` in descending order and used the kable() method from knitr to return the table.
+
+#### Code
+
+```{r task2}
+# creating vectors with pairs of race names and race abbreviations 
+race_name <- c("Bahrain Grand Prix", "Emilia Romagna Grand Prix", "Portuguese Grand Prix", "Spanish Grand Prix", "Monaco Grand Prix", "Azerbaijan Grand Prix", "French Grand Prix", "Styrian Grand Prix", "Austrian Grand Prix", "British Grand Prix", "Hungarian Grand Prix", "Belgian Grand Prix", "Dutch Grand Prix", "Italian Grand Prix", "Russian Grand Prix", "Turkish Grand Prix", "United States Grand Prix", "Mexico City Grand Prix", "São Paulo Grand Prix", "Qatar Grand Prix", "Saudi Arabian Grand Prix", "Abu Dhabi Grand Prix")
+race_abbrv <- c("BHR", "EMI", "POR", "ESP", "MON", "AZE", "FRA", "STY", "AUT", "GBR", "HUN", "BEL", "NED", "ITA", "RUS", "TUR", "USA", "MXC", "SAP", "QAT", "SAU", "ABU")
+race_codes <- data.frame(race_name, race_abbrv)
+# added the race codes to the original task 1 dataframe
+# used pivot_wider to make a dataframe with drivers as rows and races as columns
+results_df <- race_df %>%
+  inner_join(race_codes, by = "race_name") %>%
+  pivot_wider(id_cols = driver, names_from = race_abbrv, values_from = position) 
+  
+# finding the total points by driver
+total_points <- race_df %>%
+  group_by(driver) %>%
+  summarize(total_points = sum(points))
+# used inner_join to add total points by driver to the results dataframe
+results_df <- results_df %>%
+  inner_join(total_points, by = "driver") %>%
+  arrange(desc(total_points))
+# returning the dataframe
+results_df %>%
+  knitr::kable()
+```
+
+<br/>
+
+### Task 3 - Cumulative Constructors
+
+#### Write up
+
+This task was similar to task 2, but this time looking at constructors instead of the drivers. Since each constructor had two drivers, the main challenge for task 3 was finding the total points for the constructors for each individual race. To do this I grouped the dataframe from task 1 by both `constructor` and `race_name` before mutating a new `constructor_points` variable. This variable is just the sum of the points category for each constructor by race. Since there are two drivers per constructor, I used `distinct()` to ensure that there is only one entry for each constructor for each race. Our dataframe is now 220 rows, which makes sense (as 10 constructors times 22 races is 220 entries in total).
+
+The remainder of task 3 mirrors the setup of task 2. I used pivot wider to make a dataframe with individual constructors as the rows and races being the columns. Then using the task 1 dataframe, I found the total points over all 22 races by constructor. By joining these two dataframes together, I then sorted by descending total points and returned a table using `kable()`.
+
+#### Code
+
+```{r task3}
+# creating constructor dataframe with constructors as rows, races as columns
+# summed points for drivers within each constructor
+constructor_df <- race_df %>%
+  group_by(constructor, race_name) %>%
+  mutate(constructor_points = sum(points)) %>%
+  distinct(race_name, constructor, constructor_points) %>%
+  inner_join(race_codes, by = "race_name") %>%
+  pivot_wider(id_cols = constructor, names_from = race_abbrv, values_from = constructor_points) 
+# found total points for each constructor across all races
+constructor_points <- race_df %>%
+  group_by(constructor) %>%
+  summarize(total_points = sum(points))
+# arranged the constructor dataframe by the descending total points
+constructor_df <- constructor_df %>%
+  inner_join(constructor_points, by = "constructor") %>%
+  arrange(desc(total_points)) %>%
+  select(-total_points)
+# returned constructor dataframe
+constructor_df %>%
+  knitr::kable()
+```
+
+<br/>
+
+### Task 4 - Visualization
+
+#### Write up
+
+My visualizations aim to depict the change in point totals for both individual drivers and constructors in the 2021 F1 season over time. I initially intended on doing a bump chart (to display solely the change in driver and constructor *rankings* throughout the season), but I quickly realized that this would not capture the full story of the data.
+
+To me, the most interesting aspect of the data was that for much of the season, the F1 championship was a two-man race between Lewis Hamilton and Max Verstappen - no other driver even came close to keeping pace with their point totals. The same is true of the constructor standings, with Red Bull and Mercedes both well ahead of any third place competition. As such, I thought that a line chart would be a better representation of the season because it would allow viewers to see F1 rankings over time *without* losing information about the distance between first and second place, second and third place, etc.
+
+On the data side, I needed to modify the dataset from task 1 to include the cumulative points for drivers and constructors after each individual race. To do so, I used the `cumsum()` function to sum the points of each driver and constructor up until a given race. After grouping by `race`, I was find the cumulative points of each driver and constructor across all 22 races. This resulting variable is the variable on the y-axis of each plot. 
+
+To further my narrative, I wanted to focus primarily on the top drivers and constructors throughout the season (Hamilton and Verstappen, Mercedes and Red Bull) while still including all of the relevant information about cumulative points on the chart. To do so, I selectively colored and labeled only these drivers and constructors, leaving all remaining drivers and constructors unlabeled and in grey. This also helped to declutter the charts, as leaving all 20 drivers named would have made the graph unreadable.
+
+To make the line charts more visually appealing, I used a custom theme found online and made slight modifications (changing font sizes, adjusting plot margins, etc.) to give myself more control over the final product. Similar to what we discussed in class, I also removed the legend and opted to use labels closer to the lines to reduce the need to look back and forth between the legend and the visualizations.
+
+Again, my visualization is primarily focused on the race for first place in both the driver and constructor standings. As such, I increased the visual presence of the top 2 competitors (by making their lines colored, increasing line size, and adding labels) while minimizing the influence of lower-ranked drivers and constructors (reducing line size, making the lines gray, and including no labels). I also named the titles strategically to let viewers know exactly what the visualizations are trying to convey. While all of the relevant numeric data from the f1 object is present on the graph, I only highlighted things that would further my narrative that this years' F1 championship was a two-way race (in both driver and constructor).
+
+#### Code
+
+```{r task4cleaning}
+# created new cumulative rank variable to find total points by driver after each race
+driver_visual_df <- race_df %>%
+  group_by(driver) %>%
+  mutate(cumulative_points = cumsum(points)) %>%
+  arrange(round, desc(cumulative_points), driver) %>%
+  group_by(round) %>% 
+  mutate(cumulative_rank = rank(-cumulative_points, ties.method = 'first')) %>%
+  ungroup(round)
+# created new top_drivers dataframe with the two top drivers (to help customize the visualization later on)
+top_drivers <- driver_visual_df %>%
+  filter(driver == (driver_visual_df[[1, 4]]) |
+         driver == (driver_visual_df[[2, 4]]))
+# repeated the above data cleaning but with constructors
+constructor_visual_df <- driver_visual_df %>%
+  group_by(constructor, round) %>%
+  mutate(constructor_cumulative_points = sum(cumulative_points)) %>%
+  distinct(round, constructor, constructor_cumulative_points) %>%
+  arrange(round, desc(constructor_cumulative_points), constructor) %>%
+  group_by(round) %>%
+  mutate(constructor_cumulative_rank = rank(-constructor_cumulative_points, ties.method = 'first')) %>%
+  ungroup(round)
+top_constructors <- constructor_visual_df %>%
+  filter(constructor == (constructor_visual_df[[1, 2]]) |
+         constructor == (constructor_visual_df[[2, 2]]))
+```
+
+
+```{r themefunction}
+# the my_theme function (before my modifications) taken from: 
+# https://www.statology.org/bump-chart-in-r-using-ggplot2/
+my_theme <- function() {
+  # colors
+  color.background = "white"
+  color.text = "#22211d"
+  # begin construction of chart
+  theme_bw(base_size=15) +
+    # format background colors
+    theme(panel.background = element_rect(fill=color.background,
+                                          color=color.background)) +
+    theme(plot.background  = element_rect(fill=color.background,
+                                          color=color.background)) +
+    theme(panel.border     = element_rect(color=color.background)) +
+    theme(strip.background = element_rect(fill=color.background,
+                                          color=color.background)) +
+    # format the grid
+    theme(panel.grid.major.y = element_blank()) +
+    theme(panel.grid.minor.y = element_blank()) +
+    theme(axis.ticks       = element_blank()) +
+    # format the legend
+    theme(legend.position = "none") +
+    # format title and axis labels
+    theme(plot.title       = element_text(color=color.text, size=16, face = "bold")) +
+    theme(plot.subtitle       = element_text(color=color.text, size=12)) +
+    theme(axis.title.x     = element_text(size=12, color="black", face = "bold")) +
+    theme(axis.title.y     = element_text(size=12, color="black", face = "bold",
+                                          vjust=1.25)) +
+    theme(axis.text.x      = element_text(size=10, vjust=0.5, hjust=0.5,
+                                          color = color.text)) +
+    theme(axis.text.y      = element_text(size=10, color = color.text)) +
+    theme(strip.text       = element_text(face = "bold")) +
+    # plot margins
+    theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5))
+    }
+```
+
+```{r animated driver visualization, fig.width=12, fig.height=6, echo=FALSE}
+# created ggplot object with rounds on the x-axis, cumulative points on the y axis 
+p1 <- ggplot(data = driver_visual_df, aes(x = round, y = cumulative_points, color = driver, group = driver)) +
+  geom_line(size = 0.5) +
+  geom_point(size = 0.5) +
+# geom_segment idea taken from the gganimate lecture notes
+  geom_segment(data = top_drivers,
+    aes(xend = 22, yend = cumulative_points), 
+    linetype = 2, 
+    colour = 'grey'
+  ) + 
+  # added labels
+  geom_text(data = top_drivers,
+    aes(x = 22.1, label = driver), 
+    hjust = 0
+  ) +
+  my_theme() +
+  # added chart labels
+  labs(x = 'Race Number', y = 'Cumulative Points', title = str_wrap('Verstappen Edges Hamilton in Final Race to Claim F1 World Drivers Championship', 40), subtitle = "2021 F1 Driver Standings By Race") +
+  # added custom line chart colors
+  scale_color_manual(breaks = c(driver_visual_df[[1, 4]], driver_visual_df[[2, 4]]),
+                     values = c("#a12424", "#ffa904", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray")) +
+  geom_line(data = top_drivers, size = 1, aes(group = driver)) +
+  geom_point(data = top_drivers, size = 1.5) +
+  # changed scale with documentation from:
+  # https://ggplot2.tidyverse.org/reference/scale_continuous.html
+  scale_x_continuous(breaks=c(0,2,4,6,8,10,12,14,16,18,20,22), expand=c(0,1), limits=c(0,30)) +
+  # animated the graph using code from the ggplot lecture notes
+  gganimate::transition_reveal(round)
+gganimate::animate(p1, end_pause = 30)
+```
+
+```{r animated constructor visualization, fig.width=12, fig.height=6, echo=FALSE}
+# created ggplot object with rounds on the x-axis, cumulative points on the y axis 
+p2 <- ggplot(data = constructor_visual_df, aes(x = round, y = constructor_cumulative_points, color = constructor, group = constructor)) +
+  geom_line(size = 0.5) +
+  geom_point(size = 0.5) +
+  geom_segment(data = top_constructors,
+    aes(xend = 22, yend = constructor_cumulative_points), 
+    linetype = 2, 
+    colour = 'grey'
+  ) + 
+  geom_text(data = top_constructors,
+    aes(x = 22.1, label = constructor),
+    hjust = 0
+  ) +
+  my_theme() +
+  theme(legend.position = "none") +
+  # added chart labels
+  labs(x = 'Race Number', y = 'Cumulative Points', title = str_wrap('Mercedes and Red Bull Duel For First in F1 Constructor Standings', 40), subtitle = "2021 F1 Constructor Standings By Race") +
+  scale_color_manual(breaks = c(constructor_visual_df[[1, 2]], constructor_visual_df[[2, 2]]),
+                     values = c("#ffa904", "#a12424", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray")) +
+  geom_line(data = top_constructors, size = 1, aes(group = constructor)) +
+  geom_point(data = top_constructors, size = 1.5) +
+  scale_x_continuous(breaks=c(0,2,4,6,8,10,12,14,16,18,20,22), expand=c(0,1), limits=c(0,30)) +
+  # animated the graph
+  gganimate::transition_reveal(round)
+gganimate::animate(p2, end_pause = 30)
+```
