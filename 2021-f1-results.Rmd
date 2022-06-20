@@ -4,15 +4,7 @@ output: rmarkdown::html_document
 author: Miles King
 ---
 
-Due Monday, February 21st by 5:00 pm.
-
-Before you start be sure to read through *all* of the rules and instructions in the `README.md`.
-
-<br/>
-
-### Data & Setup
-
-```{r message=FALSE}
+```{r message=FALSE, echo=FALSE}
 library(tidyverse)
 f1 = readRDS(file="data/f1.rds")
 ```
@@ -29,7 +21,7 @@ I also did some additional data cleaning, such as combining each driver's `given
 
 #### Code
 
-```{r task1}
+```{r task1, echo=FALSE}
 race_df <- tibble::tibble(f1 = f1)
 # tidying the dataframe by using hoist and unnest_longer
 race_df <- race_df %>%
@@ -70,18 +62,17 @@ print(head(race_df, 10))
 <br/>
 
 
-### Task 2 - Drivers' Championship
+### Task 2 - Drivers' Championship Results
 
-Before starting task 2, I wanted to convert the full race names to their abbreviated names (similar to the table as found on 
-[I'm an inline-style link with title](https://en.wikipedia.org/wiki/2021_Formula_One_World_Championship" >target="_blank "Wikipedia") to make my final table easier to read. To do so I made a new dataframe with two columns - one column with the full race name and the other column with the corresponding abbreviation. I then was able to join this dataframe to the existing task 1 dataframe by matching the full name of each race.
+My second goal was to construct a table showcasing the standings for the World Drivers' Championship, with each driver representing a row and each race reprenting a column, similar to the table found on [Wikipedia](https://en.wikipedia.org/wiki/2021_Formula_One_World_Championship).
 
-To complete task 2, I then utilized the `pivot_wider` method to convert this tidy dataframe into a dataframe with individual drivers as the rows and the specific races as columns. This was accomplished by making the ID columns the drivers, taking names from `race_abbrv` (which was added to the dataframe using the above `inner_join`), and the values from position (since the question wants each entry in the dataframe to represent a particular driver's position in the given race).
+Before starting task 2, I wanted to convert the full race names to their abbreviated names to make my final table easier to read. To do so I made a new dataframe with two columns - one column with the full race name and the other column with the corresponding abbreviation. I then was able to join this dataframe to the existing task 1 dataframe by matching the full name of each race.
 
-From there, the only thing left to do was to add a column to with the total points for each driver at the end of the season. I took the original dataframe from task 1, grouped by driver, and then summed the points column to find the total points over all 22 races by driver. I saved this as a new dataframe `total_points` and then joined this to the existing dataframe obtained by using `pivot_wider` by driver to complete the task. I then arranged by `total_points` in descending order and used the kable() method from knitr to return the table.
+To complete task 2, I then utilized the `pivot_wider` method to convert this tidy dataframe into a dataframe with individual drivers as the rows and the specific races as columns. From there, I added an additional column to with the total points for each driver at the end of the season. I took the original dataframe from task 1, grouped by driver, and then summed the points column to find the total points over all 22 races by driver. I saved this as a new dataframe `total_points` and then joined this to the existing dataframe obtained by using `pivot_wider` by driver to complete the task. I then arranged by `total_points` in descending order and used the kable() method from knitr to return the table.
 
 #### Code
 
-```{r task2}
+```{r task2, echo=FALSE}
 # creating vectors with pairs of race names and race abbreviations 
 race_name <- c("Bahrain Grand Prix", "Emilia Romagna Grand Prix", "Portuguese Grand Prix", "Spanish Grand Prix", "Monaco Grand Prix", "Azerbaijan Grand Prix", "French Grand Prix", "Styrian Grand Prix", "Austrian Grand Prix", "British Grand Prix", "Hungarian Grand Prix", "Belgian Grand Prix", "Dutch Grand Prix", "Italian Grand Prix", "Russian Grand Prix", "Turkish Grand Prix", "United States Grand Prix", "Mexico City Grand Prix", "São Paulo Grand Prix", "Qatar Grand Prix", "Saudi Arabian Grand Prix", "Abu Dhabi Grand Prix")
 race_abbrv <- c("BHR", "EMI", "POR", "ESP", "MON", "AZE", "FRA", "STY", "AUT", "GBR", "HUN", "BEL", "NED", "ITA", "RUS", "TUR", "USA", "MXC", "SAP", "QAT", "SAU", "ABU")
@@ -107,17 +98,13 @@ results_df %>%
 
 <br/>
 
-### Task 3 - Cumulative Constructors
+### Task 3 - Constructors' Championship Results
 
-#### Write up
-
-This task was similar to task 2, but this time looking at constructors instead of the drivers. Since each constructor had two drivers, the main challenge for task 3 was finding the total points for the constructors for each individual race. To do this I grouped the dataframe from task 1 by both `constructor` and `race_name` before mutating a new `constructor_points` variable. This variable is just the sum of the points category for each constructor by race. Since there are two drivers per constructor, I used `distinct()` to ensure that there is only one entry for each constructor for each race. Our dataframe is now 220 rows, which makes sense (as 10 constructors times 22 races is 220 entries in total).
+I then wanted to visualize the results for the Constructors' Championship. Since each constructor has two drivers, the main challenge for task 3 was finding the total points for the constructors for each individual race. To do this I grouped the dataframe from task 1 by both `constructor` and `race_name` before mutating a new `constructor_points` variable. This variable is just the sum of the points category for each constructor by race. Since there are two drivers per constructor, I used `distinct()` to ensure that there is only one entry for each constructor for each race. Our dataframe is now 220 rows (10 constructors times 22 races is 220 entries in total).
 
 The remainder of task 3 mirrors the setup of task 2. I used pivot wider to make a dataframe with individual constructors as the rows and races being the columns. Then using the task 1 dataframe, I found the total points over all 22 races by constructor. By joining these two dataframes together, I then sorted by descending total points and returned a table using `kable()`.
 
-#### Code
-
-```{r task3}
+```{r task3, echo=FALSE}
 # creating constructor dataframe with constructors as rows, races as columns
 # summed points for drivers within each constructor
 constructor_df <- race_df %>%
@@ -142,25 +129,19 @@ constructor_df %>%
 
 <br/>
 
-### Task 4 - Visualization
+### Task 4 - Visualizations
 
-#### Write up
+I then created 2 visualizations with the aim to depict the change in point totals for both individual drivers and constructors in the 2021 F1 season over time. I initially intended on doing a bump chart (to display solely the change in driver and constructor *rankings* throughout the season), but I quickly realized that this would not capture the full story of the data.
 
-My visualizations aim to depict the change in point totals for both individual drivers and constructors in the 2021 F1 season over time. I initially intended on doing a bump chart (to display solely the change in driver and constructor *rankings* throughout the season), but I quickly realized that this would not capture the full story of the data.
-
-To me, the most interesting aspect of the data was that for much of the season, the F1 championship was a two-man race between Lewis Hamilton and Max Verstappen - no other driver even came close to keeping pace with their point totals. The same is true of the constructor standings, with Red Bull and Mercedes both well ahead of any third place competition. As such, I thought that a line chart would be a better representation of the season because it would allow viewers to see F1 rankings over time *without* losing information about the distance between first and second place, second and third place, etc.
+To me, the most interesting aspect of the data was that for much of the season, the F1 championship was a two-man race between Lewis Hamilton and Max Verstappen - no other driver even came close to keeping pace with their point totals. The same is true of the constructor standings, with Red Bull and Mercedes battling well ahead of the midfield. As such, I thought that a line chart would be a better representation of the season because it would allow viewers to see F1 rankings over time *without* losing information about the distance between first and second place, second and third place, etc.
 
 On the data side, I needed to modify the dataset from task 1 to include the cumulative points for drivers and constructors after each individual race. To do so, I used the `cumsum()` function to sum the points of each driver and constructor up until a given race. After grouping by `race`, I was find the cumulative points of each driver and constructor across all 22 races. This resulting variable is the variable on the y-axis of each plot. 
 
 To further my narrative, I wanted to focus primarily on the top drivers and constructors throughout the season (Hamilton and Verstappen, Mercedes and Red Bull) while still including all of the relevant information about cumulative points on the chart. To do so, I selectively colored and labeled only these drivers and constructors, leaving all remaining drivers and constructors unlabeled and in grey. This also helped to declutter the charts, as leaving all 20 drivers named would have made the graph unreadable.
 
-To make the line charts more visually appealing, I used a custom theme found online and made slight modifications (changing font sizes, adjusting plot margins, etc.) to give myself more control over the final product. Similar to what we discussed in class, I also removed the legend and opted to use labels closer to the lines to reduce the need to look back and forth between the legend and the visualizations.
+Again, my visualization is primarily focused on the race for first place in both the driver and constructor standings. As such, I increased the visual presence of the top 2 competitors (by making their lines colored, increasing line size, and adding labels) while minimizing the influence of lower-ranked drivers and constructors (reducing line size, making the lines gray, and including no labels). 
 
-Again, my visualization is primarily focused on the race for first place in both the driver and constructor standings. As such, I increased the visual presence of the top 2 competitors (by making their lines colored, increasing line size, and adding labels) while minimizing the influence of lower-ranked drivers and constructors (reducing line size, making the lines gray, and including no labels). I also named the titles strategically to let viewers know exactly what the visualizations are trying to convey. While all of the relevant numeric data from the f1 object is present on the graph, I only highlighted things that would further my narrative that this years' F1 championship was a two-way race (in both driver and constructor).
-
-#### Code
-
-```{r task4cleaning}
+```{r task4cleaning, echo=FALSE}
 # created new cumulative rank variable to find total points by driver after each race
 driver_visual_df <- race_df %>%
   group_by(driver) %>%
@@ -188,7 +169,7 @@ top_constructors <- constructor_visual_df %>%
 ```
 
 
-```{r themefunction}
+```{r themefunction, echo=FALSE}
 # the my_theme function (before my modifications) taken from: 
 # https://www.statology.org/bump-chart-in-r-using-ggplot2/
 my_theme <- function() {
